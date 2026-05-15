@@ -41,15 +41,18 @@ export const iframeHandshake = new Promise(resolve => {
   resolveIframeHandshake = resolve as () => void;
 });
 
-// Field used by a "child" frame to determine its parent origin
+// Track every parent that ever registered with us — sandpack remounts (StrictMode,
+// theme key change) create fresh clients with new channelIds. We dispatch to all
+// known ids so messages reach whichever listener is currently live.
 let parentOrigin: string | null = null;
 let parentId: number | null = null;
+const parentIds = new Set<number>();
 
 const parentOriginListener = (e: MessageEvent) => {
   if (e.data.type === 'register-frame') {
-    // Re-register on every call: sandpack remounts (e.g. StrictMode) get fresh channelIds.
     parentOrigin = e.data.origin;
     parentId = e.data.id ?? null;
+    if (parentId !== null) parentIds.add(parentId);
 
     if (!iframeHandshakeDone) {
       resolveIframeHandshake();
@@ -77,22 +80,24 @@ export function resetState() {
 export function dispatch(message: any) {
   if (!message) return;
 
-  const newMessage = { ...message, codesandbox: true };
-  if (parentId !== null) {
-    newMessage.$id = parentId;
-  }
+  const baseMessage = { ...message, codesandbox: true };
 
-  notifyListeners(newMessage);
-  notifyFrames(newMessage);
+  notifyListeners(baseMessage);
+  notifyFrames(baseMessage);
 
   if (isStandalone) return;
   if (parentOrigin === null && message.type !== 'initialized') return;
 
-  if (window.opener) {
-    window.opener.postMessage(newMessage, parentOrigin === null ? '*' : parentOrigin);
-  } else {
-    window.parent.postMessage(newMessage, parentOrigin === null ? '*' : parentOrigin);
+  const target = parentOrigin === null ? '*' : parentOrigin;
+  const targetWindow = window.opener || window.parent;
+
+  if (parentIds.size === 0) {
+    targetWindow.postMessage(baseMessage, target);
+    return;
   }
+  parentIds.forEach(id => {
+    targetWindow.postMessage({ ...baseMessage, $id: id }, target);
+  });
 }
 
 export type Callback = (
