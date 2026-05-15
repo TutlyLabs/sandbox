@@ -1,0 +1,79 @@
+# Builds the Sandpack bundler and publishes www/ as a GHCR image for self-hosters.
+name: build-bundler
+
+on:
+  push:
+    branches: [master, main]
+    paths-ignore:
+      - "**/*.md"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/PULL_REQUEST_TEMPLATE.md"
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: tutlylabs/sandbox
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 16.20.2
+
+      - run: npm install -g yarn@1.22.22
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/yarn
+            **/node_modules
+          key: ${{ runner.os }}-yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: ${{ runner.os }}-yarn-
+
+      - run: yarn install --network-timeout 600000 --frozen-lockfile
+
+      - run: yarn build:deps
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+
+      - run: yarn build:sandpack
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+          BUNDLER_PUBLIC_PATH: /sandpack/
+
+      - run: |
+          test -f www/index.html
+          test -d www/static/js
+          du -sh www
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=sha-,format=short
+            type=raw,value=${{ github.run_number }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.bundler
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: false

@@ -13,10 +13,12 @@ function checkIsStandalone() {
   }
 
   if (window.opener || window.parent !== window) {
-    if (window.location && window.location.href.indexOf(host) > -1) {
-      // If this location href is codesandbox.io or something, we're most probably in an embed
-      // iframed on another page. This means that we're actually standalone, but we're fooled
-      // by the fact that we're embedded somewhere else.
+    // Only apply when host is an absolute URL — otherwise self-host sub-paths false-match.
+    if (
+      window.location &&
+      /^https?:\/\//.test(host) &&
+      window.location.href.indexOf(host) > -1
+    ) {
       return true;
     }
 
@@ -44,7 +46,8 @@ let parentOrigin: string | null = null;
 let parentId: number | null = null;
 
 const parentOriginListener = (e: MessageEvent) => {
-  if (e.data.type === 'register-frame' && !parentId) {
+  if (e.data.type === 'register-frame') {
+    // Re-register on every call: sandpack remounts (e.g. StrictMode) get fresh channelIds.
     parentOrigin = e.data.origin;
     parentId = e.data.id ?? null;
 
@@ -52,7 +55,6 @@ const parentOriginListener = (e: MessageEvent) => {
       resolveIframeHandshake();
       iframeHandshakeDone = true;
     }
-    self.removeEventListener('message', parentOriginListener);
   }
 };
 

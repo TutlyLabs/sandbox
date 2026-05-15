@@ -13,7 +13,8 @@ const VERSION = require('@codesandbox/common/lib/version').default;
 // const childProcess = require('child_process');
 const commonConfig = require('./webpack.common');
 
-const publicPath = '/';
+// BUNDLER_PUBLIC_PATH lets self-hosters serve the bundler under a sub-path.
+const publicPath = process.env.BUNDLER_PUBLIC_PATH || '/';
 // const isMaster =
 //   childProcess
 //     .execSync(`git branch | grep \\* | cut -d ' ' -f2`)
@@ -35,7 +36,8 @@ module.exports = merge(commonConfig, {
   // },
 
   optimization: {
-    minimize: true,
+    // Self-host: skip terser entirely. Files are cached once + gzipped at the edge.
+    minimize: false,
     minimizer: [
       new TerserJSPlugin({
         terserOptions: {
@@ -46,11 +48,7 @@ module.exports = merge(commonConfig, {
             ascii_only: true,
           },
         },
-        // Use multi-process parallel running to improve the build speed
-        // Default number of concurrent runs: os.cpus().length - 1
-        // Disabled on WSL (Windows Subsystem for Linux) due to an issue with Terser
-        // https://github.com/webpack-contrib/terser-webpack-plugin/issues/21
-        parallel: 2,
+        parallel: false,
         cache: true,
         sourceMap: true,
       }),
@@ -86,9 +84,8 @@ module.exports = merge(commonConfig, {
         analyzerMode: 'static',
       }),
     new webpack.DefinePlugin({ VERSION: JSON.stringify(VERSION) }),
-    // Generate a service worker script that will precache, and keep up to date,
-    // the HTML & assets that are part of the Webpack build.
-    new SWPrecacheWebpackPlugin({
+    // SW disabled for self-host (precache plugin hangs on Node 16; not needed).
+    false && new SWPrecacheWebpackPlugin({
       // By default, a cache-busting query parameter is appended to requests
       // used to populate the caches, to ensure the responses are fresh.
       // If a URL is already hashed by Webpack, then there is no concern
@@ -178,9 +175,8 @@ module.exports = merge(commonConfig, {
         },
       ],
     }),
-    // Generate a service worker script that will precache, and keep up to date,
-    // the HTML & assets that are part of the Webpack build.
-    new SWPrecacheWebpackPlugin({
+    // SW disabled for self-host (see note above).
+    false && new SWPrecacheWebpackPlugin({
       // By default, a cache-busting query parameter is appended to requests
       // used to populate the caches, to ensure the responses are fresh.
       // If a URL is already hashed by Webpack, then there is no concern

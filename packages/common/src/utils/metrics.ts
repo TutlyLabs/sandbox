@@ -155,6 +155,11 @@ export function persistMeasurements(data: {
     return Promise.resolve();
   }
 
+  // Self-host: skip external telemetry.
+  if (process.env.SANDPACK) {
+    return Promise.resolve();
+  }
+
   // Ignore external call for on-prem deploys
   // @ts-ignore
   if (window._env_?.IS_ONPREM === 'true') {

@@ -2,6 +2,9 @@ const IS_LOCAL_SERVER = Boolean(JSON.stringify(process.env.LOCAL_SERVER));
 
 export default () => {
   if ('SANDPACK' in process.env) {
+    // Self-host sub-path so runtime-loaded scripts (babel, eslint) resolve same-origin.
+    const p = process.env.BUNDLER_PUBLIC_PATH;
+    if (p) return p.replace(/\/$/, '');
     return '';
   }
 
