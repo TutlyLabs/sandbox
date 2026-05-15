@@ -85,14 +85,8 @@ function sendTestCount(modules: { [path: string]: Module }) {
     count: tests.length,
   });
 
-  // Newer sandpack-react expects this to auto-run tests in watch mode.
+  // Triggers sandpack-react's watchMode run.
   dispatch({ type: 'test', event: 'initialize_tests' });
-
-  // Also kick off the run directly — the parent's run-all-tests dispatch
-  // is unreliable on first mount due to listener/client setup ordering.
-  if (tests.length > 0) {
-    testRunner.runTests(true).catch(() => {});
-  }
 }
 
 let firstLoad = true;
